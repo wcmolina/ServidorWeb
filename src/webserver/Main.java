@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package servidorweb;
+package webserver;
 
 import java.io.IOException;
 
@@ -19,8 +19,9 @@ public class Main {
     public static void main(String[] args) {
         try {
             // TODO code application logic here
-            ServidorWeb servidor = new ServidorWeb();
+            WebServer servidor = new WebServer();
             servidor.start();
+            // Ir a localhost en un browser para enviar un request
         } catch (IOException ex) {
             ex.printStackTrace();
         }
