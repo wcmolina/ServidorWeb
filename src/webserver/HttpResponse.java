@@ -51,7 +51,7 @@ public class HttpResponse extends Thread {
         }
     }
 
-    public HttpResponse(BufferedReader requestContent, DataOutputStream responseContent) throws IOException {
+    public HttpResponse(BufferedReader requestContent, DataOutputStream responseContent) {
         this.requestContent = requestContent;
         this.responseContent = responseContent;
     }
