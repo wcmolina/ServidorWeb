@@ -24,8 +24,8 @@ import org.apache.commons.io.FilenameUtils;
  */
 public class HttpResponse extends Thread {
 
-    private BufferedReader requestContent;
-    private DataOutputStream responseContent;
+    private final BufferedReader requestContent;
+    private final DataOutputStream responseContent;
     // El new line y carriage return son importantes (\r\n) en el formato del header
     private final String HEADER_FORMAT = ""
             + "HTTP/1.1 {0}\r\n"
@@ -34,20 +34,26 @@ public class HttpResponse extends Thread {
             + "Content-Type: {2}\r\n"
             + "Connection: close\r\n"
             + "\r\n";
-    private final Properties STATUS_CODES;
-    private final Properties MIME_TYPES;
+    public final static Properties STATUS_CODES;
+    public final static Properties MIME_TYPES;
+
+    static {
+        STATUS_CODES = new Properties();
+        MIME_TYPES = new Properties();
+        try {
+            InputStream inputStream = HttpResponse.class.getResourceAsStream("HttpStatusCodes.properties");
+            // Crea un HashTable a partir de los archivos .properties (http status codes y mime types)
+            STATUS_CODES.load(inputStream);
+            inputStream = HttpResponse.class.getResourceAsStream("HttpMimeTypes.properties");
+            MIME_TYPES.load(inputStream);
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
 
     public HttpResponse(BufferedReader requestContent, DataOutputStream responseContent) throws IOException {
         this.requestContent = requestContent;
         this.responseContent = responseContent;
-        STATUS_CODES = new Properties();
-        MIME_TYPES = new Properties();
-
-        // Crea un HashTable a partir de los archivos .properties (http status codes y mime types)
-        InputStream inputStream = getClass().getResourceAsStream("HttpStatusCodes.properties");
-        STATUS_CODES.load(inputStream);
-        inputStream = getClass().getResourceAsStream("HttpMimeTypes.properties");
-        MIME_TYPES.load(inputStream);
     }
 
     public void buildResponse(BufferedReader requestContent, DataOutputStream responseContent) {
