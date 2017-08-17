@@ -17,9 +17,11 @@ public class Main {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
+        ThreadPool threadPool = new ThreadPool();
         try {
             // TODO code application logic here
-            WebServer servidor = new WebServer();
+            WebServer servidor = new WebServer(threadPool);
+            threadPool.start();
             servidor.start();
             // Ir a localhost en un browser para enviar un request
         } catch (IOException ex) {

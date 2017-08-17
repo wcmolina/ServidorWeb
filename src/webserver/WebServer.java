@@ -19,10 +19,12 @@ import java.net.Socket;
 public class WebServer extends Thread {
 
     private final int PORT = 80;
-    private ServerSocket socket;
+    private final ServerSocket SOCKET;
+    private final ThreadPool THREAD_POOL;
 
-    public WebServer() throws IOException {
-        socket = new ServerSocket(PORT);
+    public WebServer(ThreadPool threadPool) throws IOException {
+        SOCKET = new ServerSocket(PORT);
+        THREAD_POOL = threadPool;
     }
 
     @Override
@@ -30,13 +32,14 @@ public class WebServer extends Thread {
         while (true) {
             try {
                 // No pasa del accept() hasta que entre una solicitud
-                Socket request = socket.accept();
+                Socket request = SOCKET.accept();
                 // Contiene el contenido del request
                 BufferedReader requestContent = new BufferedReader(new InputStreamReader(request.getInputStream()));
                 // Contiene el contenido del response
                 DataOutputStream responseContent = new DataOutputStream(request.getOutputStream());
                 HttpResponse response = new HttpResponse(requestContent, responseContent);
-                response.start();
+                // Mandarlo al thread pool para que se ejecute el response ahi
+                THREAD_POOL.execute(response);
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
