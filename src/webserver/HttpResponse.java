@@ -7,16 +7,17 @@ package webserver;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
-import java.io.FileInputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
 /**
@@ -82,7 +83,7 @@ public class HttpResponse extends Thread {
     }
 
     public void sendGetResponse(String requestPath) throws IOException {
-        FileInputStream file = null;
+        File file;
         String fileExtension = FilenameUtils.getExtension(requestPath);
         try {
             if (requestPath.isEmpty() || requestPath.equals("/")) {
@@ -91,29 +92,21 @@ public class HttpResponse extends Thread {
                 addHeader("Location", "/index.html");
                 addHeader("Content-Type", MIME_TYPES.getProperty("html"));
                 RESPONSE_OUTPUT.writeBytes(getHeaders());
-                RESPONSE_OUTPUT.flush();
-                RESPONSE_OUTPUT.close();
-                return;
-            }
-            file = new FileInputStream("mi_web" + requestPath);
-            status = 200;
-            addHeader("Content-Type", MIME_TYPES.getProperty(fileExtension));
-            RESPONSE_OUTPUT.writeBytes(getHeaders());
-            // Leer archivo
-            while (true) {
-                int byteData = file.read();
-                if (byteData == -1) {
-                    break;
+            } else {
+                file = new File("mi_web" + requestPath);
+                if (file.exists()) {
+                    status = 200;
+                    addHeader("Content-Type", MIME_TYPES.getProperty(fileExtension));
+                } else {
+                    file = new File("mi_web/404.html");
+                    status = 404;
+                    addHeader("Content-Type", MIME_TYPES.getProperty("html"));
                 }
-                // Adjuntar archivo en el response, byte por byte
-                RESPONSE_OUTPUT.write(byteData);
+                RESPONSE_OUTPUT.writeBytes(getHeaders());
+                RESPONSE_OUTPUT.write(FileUtils.readFileToByteArray(file));
             }
-            file.close();
-            RESPONSE_OUTPUT.flush();
-        } catch (IOException ex) {
-            // 404 Not Found. Enviar header correspondiente y 404.html
-            status = 404;
-            System.out.println(ex.getMessage());
+        } catch (IOException exception) {
+            System.out.println(exception.getMessage());
         }
         RESPONSE_OUTPUT.close();
     }
