@@ -10,10 +10,11 @@ import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
 import org.apache.commons.io.FilenameUtils;
@@ -24,16 +25,10 @@ import org.apache.commons.io.FilenameUtils;
  */
 public class HttpResponse extends Thread {
 
-    private final BufferedReader requestContent;
-    private final DataOutputStream responseContent;
-    // El new line y carriage return son importantes (\r\n) en el formato del header
-    private final String HEADER_FORMAT = ""
-            + "HTTP/1.1 {0}\r\n"
-            + "Date: {1}\r\n"
-            + "Server: Servidor Java v0.1\r\n"
-            + "Content-Type: {2}\r\n"
-            + "Connection: close\r\n"
-            + "\r\n";
+    private final BufferedReader REQUEST_INPUT;
+    private final DataOutputStream RESPONSE_OUTPUT;
+    private final HashMap<String, Object> HEADERS;
+    private int status;
     public final static Properties STATUS_CODES;
     public final static Properties MIME_TYPES;
 
@@ -51,65 +46,110 @@ public class HttpResponse extends Thread {
         }
     }
 
-    public HttpResponse(BufferedReader requestContent, DataOutputStream responseContent) {
-        this.requestContent = requestContent;
-        this.responseContent = responseContent;
+    public HttpResponse(BufferedReader requestInput, DataOutputStream responseOutput) {
+        REQUEST_INPUT = requestInput;
+        RESPONSE_OUTPUT = responseOutput;
+        HEADERS = new HashMap();
+        // Agregar headers que van por defecto
+        HEADERS.put("Server", "JavaServer");
+        HEADERS.put("Connection", "close");
     }
 
-    public void buildResponse(BufferedReader requestContent, DataOutputStream responseContent) {
+    public void buildResponse(BufferedReader requestInput, DataOutputStream responseOutput) {
         try {
             // Primera linea del request. Contiene: request verb (get, post,...), path, http protocol
-            String startLine = requestContent.readLine();
+            String startLine = requestInput.readLine();
             String startLineSplit[] = startLine.split(" ");
             String requestVerb = startLineSplit[0];
             String requestPath = startLineSplit[1];
-            String httpProtocol = startLineSplit[2];
+            //String httpProtocol = startLineSplit[2];
             String fileExtension = FilenameUtils.getExtension(requestPath);
 
-            FileInputStream file = null;
-            try {
-                file = new FileInputStream("mi_web" + requestPath);
-                // Crear header con un 200 OK, y el content type se define por fileExtension. Luego se escribe en el responseContent
-                responseContent.writeBytes(buildHeader("200", fileExtension));
-                // Leer archivo y adjuntarlo en el response
-                while (true) {
-                    int byteData = file.read();
-                    if (byteData == -1) {
-                        break;
+            switch (requestVerb) {
+                case "GET": {
+                    FileInputStream file = null;
+                    try {
+                        if (requestPath.isEmpty() || requestPath.equals("/")) {
+                            // 302, redireccionamiento
+                            setStatus(302);
+                            addHeader("Location", "/index.html");
+                            addHeader("Content-Type", MIME_TYPES.getProperty("html"));
+                            responseOutput.writeBytes(getHeaders());
+                            responseOutput.flush();
+                            responseOutput.close();
+                            return;
+                        }
+                        file = new FileInputStream("mi_web" + requestPath);
+                        setStatus(200);
+                        addHeader("Content-Type", MIME_TYPES.getProperty(fileExtension));
+                        responseOutput.writeBytes(getHeaders());
+                        // Leer archivo y adjuntarlo en el response
+                        while (true) {
+                            int byteData = file.read();
+                            if (byteData == -1) {
+                                break;
+                            }
+                            responseOutput.write(byteData);
+                        }
+                        file.close();
+                        responseOutput.flush();
+                    } catch (IOException ex) {
+                        // Archivo no existe, 404 Not Found. Enviar header correspondiente y 404.html
+                        System.out.println(ex.getMessage());
                     }
-                    responseContent.write(byteData);
+                    responseOutput.close();
+                    break;
                 }
-                file.close();
-                responseContent.flush();
-            } catch (IOException ex) {
-                // Archivo no existe, 404 Not Found. Enviar header correspondiente y 404.html
-                System.out.println("Archivo no existe");
-                System.out.println(ex.getMessage());
+                case "POST": {
+                    break;
+                }
+                case "PUT": {
+                    break;
+                }
             }
-            responseContent.close();
         } catch (IOException ex) {
             ex.printStackTrace();
         }
     }
 
-    private String buildHeader(String status, String fileExtension) {
-        return MessageFormat.format(HEADER_FORMAT,
-                STATUS_CODES.getProperty(status),
-                getDateHeader(),
-                MIME_TYPES.getProperty(fileExtension));
+    public int getStatus() {
+        return status;
+    }
+
+    public void setStatus(int status) {
+        this.status = status;
+    }
+
+    public void addHeader(String headerName, String headerValue) {
+        HEADERS.put(headerName, headerValue);
+    }
+
+    public String getHeaders() {
+        StringBuilder builder = new StringBuilder();
+        // Date header
+        addHeader("Date", getDateHeader());
+        // Protocolo y status code
+        builder.append(String.format("%s %d\r\n", "HTTP/1.1", getStatus()));
+        // Los demas headers
+        for (Map.Entry<String, Object> entry : HEADERS.entrySet()) {
+            builder.append(String.format("%s: %s\r\n", entry.getKey(), entry.getValue()));
+        }
+        //Separar headers del body del response
+        builder.append("\r\n");
+        return builder.toString();
     }
 
     private String getDateHeader() {
         SimpleDateFormat dateFormat;
-        String fecha;
+        String date;
         dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss", Locale.US);
         dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-        fecha = dateFormat.format(new Date()) + " GMT";
-        return fecha;
+        date = dateFormat.format(new Date()) + " GMT";
+        return date;
     }
 
     @Override
     public void run() {
-        this.buildResponse(requestContent, responseContent);
+        this.buildResponse(REQUEST_INPUT, RESPONSE_OUTPUT);
     }
 }
