@@ -8,7 +8,6 @@ package webserver;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
@@ -71,6 +70,7 @@ public class HttpResponse extends Thread {
                     break;
                 }
                 case "POST": {
+                    sendPostResponse(requestPath);
                     break;
                 }
                 case "PUT": {
@@ -80,6 +80,23 @@ public class HttpResponse extends Thread {
         } catch (IOException ex) {
             ex.printStackTrace();
         }
+    }
+
+    public void sendPostResponse(String requestPath) throws IOException {
+        String read;
+        int contentLength = 0;
+        while (!(read = REQUEST_INPUT.readLine()).equals("")) {
+            if (read.startsWith("Content-Length")) {
+                contentLength = Integer.parseInt(read.split(" ")[1]);
+            }
+        }
+        String params = "";
+        for (int i = 0; i < contentLength; i++) {
+            params += (char) REQUEST_INPUT.read();
+        }
+        // Hacer algo con estos parametros, tal vez meterlos a un txt
+        System.out.printf("%nPARAMETROS DEL POST REQUEST: %s%n", params);
+        sendGetResponse(requestPath);
     }
 
     public void sendGetResponse(String requestPath) throws IOException {
