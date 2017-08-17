@@ -7,17 +7,19 @@ package webserver;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
 /**
@@ -56,59 +58,72 @@ public class HttpResponse extends Thread {
         HEADERS.put("Connection", "close");
     }
 
-    public void buildResponse() {
+    public void buildResponse(BufferedReader requestInput, DataOutputStream responseOutput) {
         try {
             // Primera linea del request. Contiene: request verb (get, post,...), path, http protocol
-            String startLine = REQUEST_INPUT.readLine();
+            String startLine = requestInput.readLine();
             String startLineSplit[] = startLine.split(" ");
             String requestVerb = startLineSplit[0];
             String requestPath = startLineSplit[1];
             //String httpProtocol = startLineSplit[2];
+            String fileExtension = FilenameUtils.getExtension(requestPath);
 
             switch (requestVerb) {
                 case "GET": {
-                    sendGetResponse(requestPath);
+                    FileInputStream file = null;
+                    try {
+                        if (requestPath.isEmpty() || requestPath.equals("/")) {
+                            // 302, redireccionamiento
+                            setStatus(302);
+                            addHeader("Location", "/index.html");
+                            addHeader("Content-Type", MIME_TYPES.getProperty("html"));
+                            responseOutput.writeBytes(getHeaders());
+                            responseOutput.flush();
+                            responseOutput.close();
+                            return;
+                        }
+                        file = new FileInputStream("mi_web" + requestPath);
+                        setStatus(200);
+                        addHeader("Content-Type", MIME_TYPES.getProperty(fileExtension));
+                        responseOutput.writeBytes(getHeaders());
+                        // Leer archivo y adjuntarlo en el response
+                        while (true) {
+                            int byteData = file.read();
+                            if (byteData == -1) {
+                                break;
+                            }
+                            responseOutput.write(byteData);
+                        }
+                        file.close();
+                        responseOutput.flush();
+                    } catch (IOException ex) {
+                        // Archivo no existe, 404 Not Found. Enviar header correspondiente y 404.html
+                        System.out.println(ex.getMessage());
+                    }
+                    responseOutput.close();
                     break;
                 }
                 case "POST": {
                     break;
                 }
                 case "PUT": {
+                    /*try{
+                    setStatus(200);
+                    URL url = new URL(requestPath);
+                    HttpURLConnection httpCon = (HttpURLConnection) url.openConnection();
+                    httpCon.setDoOutput(true);
+                    httpCon.setRequestMethod("PUT");
+                    responseOutput.writeBytes(httpCon.getOutputStream().toString());
+                    httpCon.getInputStream();
+                    }catch(IOException e) {
+                        System.out.println(e.getMessage());
+                    }*/
                     break;
                 }
             }
         } catch (IOException ex) {
             ex.printStackTrace();
         }
-    }
-
-    public void sendGetResponse(String requestPath) throws IOException {
-        File file;
-        String fileExtension = FilenameUtils.getExtension(requestPath);
-        try {
-            if (requestPath.isEmpty() || requestPath.equals("/")) {
-                // 302, redireccionamiento
-                status = 302;
-                addHeader("Location", "/index.html");
-                addHeader("Content-Type", MIME_TYPES.getProperty("html"));
-                RESPONSE_OUTPUT.writeBytes(getHeaders());
-            } else {
-                file = new File("mi_web" + requestPath);
-                if (file.exists()) {
-                    status = 200;
-                    addHeader("Content-Type", MIME_TYPES.getProperty(fileExtension));
-                } else {
-                    file = new File("mi_web/404.html");
-                    status = 404;
-                    addHeader("Content-Type", MIME_TYPES.getProperty("html"));
-                }
-                RESPONSE_OUTPUT.writeBytes(getHeaders());
-                RESPONSE_OUTPUT.write(FileUtils.readFileToByteArray(file));
-            }
-        } catch (IOException exception) {
-            System.out.println(exception.getMessage());
-        }
-        RESPONSE_OUTPUT.close();
     }
 
     public int getStatus() {
@@ -128,14 +143,13 @@ public class HttpResponse extends Thread {
         // Date header
         addHeader("Date", getDateHeader());
         // Protocolo y status code
-        builder.append(String.format("%s %s\r\n", "HTTP/1.1", STATUS_CODES.getProperty(String.valueOf(status))));
+        builder.append(String.format("%s %d\r\n", "HTTP/1.1", getStatus()));
         // Los demas headers
-        HEADERS.entrySet().forEach((entry) -> {
+        for (Map.Entry<String, Object> entry : HEADERS.entrySet()) {
             builder.append(String.format("%s: %s\r\n", entry.getKey(), entry.getValue()));
-        });
+        }
         //Separar headers del body del response
         builder.append("\r\n");
-        System.out.println(builder.toString());
         return builder.toString();
     }
 
@@ -150,6 +164,6 @@ public class HttpResponse extends Thread {
 
     @Override
     public void run() {
-        buildResponse();
+        this.buildResponse(REQUEST_INPUT, RESPONSE_OUTPUT);
     }
 }
