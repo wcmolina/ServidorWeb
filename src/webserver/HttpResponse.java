@@ -55,49 +55,18 @@ public class HttpResponse extends Thread {
         HEADERS.put("Connection", "close");
     }
 
-    public void buildResponse(BufferedReader requestInput, DataOutputStream responseOutput) {
+    public void buildResponse() {
         try {
             // Primera linea del request. Contiene: request verb (get, post,...), path, http protocol
-            String startLine = requestInput.readLine();
+            String startLine = REQUEST_INPUT.readLine();
             String startLineSplit[] = startLine.split(" ");
             String requestVerb = startLineSplit[0];
             String requestPath = startLineSplit[1];
             //String httpProtocol = startLineSplit[2];
-            String fileExtension = FilenameUtils.getExtension(requestPath);
 
             switch (requestVerb) {
                 case "GET": {
-                    FileInputStream file = null;
-                    try {
-                        if (requestPath.isEmpty() || requestPath.equals("/")) {
-                            // 302, redireccionamiento
-                            setStatus(302);
-                            addHeader("Location", "/index.html");
-                            addHeader("Content-Type", MIME_TYPES.getProperty("html"));
-                            responseOutput.writeBytes(getHeaders());
-                            responseOutput.flush();
-                            responseOutput.close();
-                            return;
-                        }
-                        file = new FileInputStream("mi_web" + requestPath);
-                        setStatus(200);
-                        addHeader("Content-Type", MIME_TYPES.getProperty(fileExtension));
-                        responseOutput.writeBytes(getHeaders());
-                        // Leer archivo y adjuntarlo en el response
-                        while (true) {
-                            int byteData = file.read();
-                            if (byteData == -1) {
-                                break;
-                            }
-                            responseOutput.write(byteData);
-                        }
-                        file.close();
-                        responseOutput.flush();
-                    } catch (IOException ex) {
-                        // Archivo no existe, 404 Not Found. Enviar header correspondiente y 404.html
-                        System.out.println(ex.getMessage());
-                    }
-                    responseOutput.close();
+                    sendGetResponse(requestPath);
                     break;
                 }
                 case "POST": {
@@ -110,6 +79,43 @@ public class HttpResponse extends Thread {
         } catch (IOException ex) {
             ex.printStackTrace();
         }
+    }
+
+    public void sendGetResponse(String requestPath) throws IOException {
+        FileInputStream file = null;
+        String fileExtension = FilenameUtils.getExtension(requestPath);
+        try {
+            if (requestPath.isEmpty() || requestPath.equals("/")) {
+                // 302, redireccionamiento
+                status = 302;
+                addHeader("Location", "/index.html");
+                addHeader("Content-Type", MIME_TYPES.getProperty("html"));
+                RESPONSE_OUTPUT.writeBytes(getHeaders());
+                RESPONSE_OUTPUT.flush();
+                RESPONSE_OUTPUT.close();
+                return;
+            }
+            file = new FileInputStream("mi_web" + requestPath);
+            status = 200;
+            addHeader("Content-Type", MIME_TYPES.getProperty(fileExtension));
+            RESPONSE_OUTPUT.writeBytes(getHeaders());
+            // Leer archivo
+            while (true) {
+                int byteData = file.read();
+                if (byteData == -1) {
+                    break;
+                }
+                // Adjuntar archivo en el response, byte por byte
+                RESPONSE_OUTPUT.write(byteData);
+            }
+            file.close();
+            RESPONSE_OUTPUT.flush();
+        } catch (IOException ex) {
+            // 404 Not Found. Enviar header correspondiente y 404.html
+            status = 404;
+            System.out.println(ex.getMessage());
+        }
+        RESPONSE_OUTPUT.close();
     }
 
     public int getStatus() {
@@ -129,13 +135,14 @@ public class HttpResponse extends Thread {
         // Date header
         addHeader("Date", getDateHeader());
         // Protocolo y status code
-        builder.append(String.format("%s %d\r\n", "HTTP/1.1", getStatus()));
+        builder.append(String.format("%s %s\r\n", "HTTP/1.1", STATUS_CODES.getProperty(String.valueOf(status))));
         // Los demas headers
-        for (Map.Entry<String, Object> entry : HEADERS.entrySet()) {
+        HEADERS.entrySet().forEach((entry) -> {
             builder.append(String.format("%s: %s\r\n", entry.getKey(), entry.getValue()));
-        }
+        });
         //Separar headers del body del response
         builder.append("\r\n");
+        System.out.println(builder.toString());
         return builder.toString();
     }
 
@@ -150,6 +157,6 @@ public class HttpResponse extends Thread {
 
     @Override
     public void run() {
-        this.buildResponse(REQUEST_INPUT, RESPONSE_OUTPUT);
+        buildResponse();
     }
 }
