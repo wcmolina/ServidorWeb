@@ -10,6 +10,9 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -95,8 +98,15 @@ public class HttpResponse extends Thread {
             params += (char) REQUEST_INPUT.read();
         }
         // Hacer algo con estos parametros, tal vez meterlos a un txt
-        System.out.printf("%nPARAMETROS DEL POST REQUEST: %s%n", params);
-        sendGetResponse(requestPath);
+        //System.out.printf("%nPARAMETROS DEL POST REQUEST: %s%n", params);
+        String Append = "<li class=\"collection-item\">" + params.split("&")[0].split("=")[1] + " " + params.split("&")[1].split("=")[1] + "</li>";
+        try {
+            Files.write(Paths.get("./mi_web/list.html"), Append.getBytes(), StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            //exception handling left as an exercise for the reader
+        }
+        //sendGetResponse(requestPath);
+        sendGetResponse("/list.html");
     }
 
     public void sendGetResponse(String requestPath) throws IOException {
